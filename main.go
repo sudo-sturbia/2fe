@@ -70,7 +70,6 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -81,6 +80,7 @@ import (
 	"unicode"
 
 	"github.com/atotto/clipboard"
+	"github.com/sudo-sturbia/2fe/pkg/cryptfile"
 )
 
 var (
@@ -158,7 +158,8 @@ func readKeychain(file string) *Keychain {
 		file: file,
 		keys: make(map[string]Key),
 	}
-	data, err := ioutil.ReadFile(file)
+
+	data, err := cryptfile.Read(file)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return c
@@ -252,17 +253,9 @@ func (c *Keychain) add(name string) {
 	}
 	line += "\n"
 
-	f, err := os.OpenFile(c.file, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0600)
+	err = cryptfile.Write(c.file, []byte(line))
 	if err != nil {
-		log.Fatalf("opening keychain: %v", err)
-	}
-	f.Chmod(0600)
-
-	if _, err := f.Write([]byte(line)); err != nil {
-		log.Fatalf("adding key: %v", err)
-	}
-	if err := f.Close(); err != nil {
-		log.Fatalf("adding key: %v", err)
+		log.Fatal(err)
 	}
 }
 
@@ -279,7 +272,7 @@ func (c *Keychain) code(name string) string {
 		}
 		n++
 		code = hotp(k.raw, n, k.digits)
-		f, err := os.OpenFile(c.file, os.O_RDWR, 0600)
+		f, err := os.OpenFile(c.file, os.O_RDWR, 0o600)
 		if err != nil {
 			log.Fatalf("opening keychain: %v", err)
 		}
