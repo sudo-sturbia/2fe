@@ -1,3 +1,14 @@
+2fe is exactly the same as https://github.com/rsc/2fa, except that the keychain is
+encrypted using AES-GCM before storing. To install use
+
+```
+go install github.com/sudo-sturbia/2fe@latest
+```
+
+Here's the original README
+
+---
+
 2fa is a two-factor authentication agent.
 
 Usage:
@@ -32,7 +43,7 @@ The default time-based authentication codes are derived from a hash of the
 key and the current time, so it is important that the system clock have at
 least one-minute accuracy.
 
-The keychain is stored unencrypted in the text file `$HOME/.2fa`.
+~~The keychain is stored unencrypted in the text file `$HOME/.2fa`.~~
 
 ## Example
 

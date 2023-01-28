@@ -70,17 +70,19 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 	"unicode"
 
 	"github.com/atotto/clipboard"
+	"github.com/sudo-sturbia/2fe/pkg/cryptfile"
+	"golang.org/x/term"
 )
 
 var (
@@ -106,7 +108,12 @@ func main() {
 	flag.Usage = usage
 	flag.Parse()
 
-	k := readKeychain(filepath.Join(os.Getenv("HOME"), ".2fa"))
+	password, err := password()
+	if err != nil {
+		log.Fatalf("failed to read password: %v", err)
+	}
+
+	k := readKeychain(filepath.Join(os.Getenv("HOME"), ".2fa"), password)
 
 	if *flagList {
 		if flag.NArg() != 0 {
@@ -133,7 +140,7 @@ func main() {
 		if *flagClip {
 			usage()
 		}
-		k.add(name)
+		k.add(name, password)
 		return
 	}
 	k.show(name)
@@ -153,12 +160,13 @@ type Key struct {
 
 const counterLen = 20
 
-func readKeychain(file string) *Keychain {
+func readKeychain(file, password string) *Keychain {
 	c := &Keychain{
 		file: file,
 		keys: make(map[string]Key),
 	}
-	data, err := ioutil.ReadFile(file)
+
+	data, err := cryptfile.Read(file, password)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return c
@@ -224,7 +232,7 @@ func noSpace(r rune) rune {
 	return r
 }
 
-func (c *Keychain) add(name string) {
+func (c *Keychain) add(name, password string) {
 	size := 6
 	if *flag7 {
 		size = 7
@@ -252,17 +260,9 @@ func (c *Keychain) add(name string) {
 	}
 	line += "\n"
 
-	f, err := os.OpenFile(c.file, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0600)
+	err = cryptfile.Write(c.file, password, []byte(line))
 	if err != nil {
-		log.Fatalf("opening keychain: %v", err)
-	}
-	f.Chmod(0600)
-
-	if _, err := f.Write([]byte(line)); err != nil {
-		log.Fatalf("adding key: %v", err)
-	}
-	if err := f.Close(); err != nil {
-		log.Fatalf("adding key: %v", err)
+		log.Fatal(err)
 	}
 }
 
@@ -279,7 +279,7 @@ func (c *Keychain) code(name string) string {
 		}
 		n++
 		code = hotp(k.raw, n, k.digits)
-		f, err := os.OpenFile(c.file, os.O_RDWR, 0600)
+		f, err := os.OpenFile(c.file, os.O_RDWR, 0o600)
 		if err != nil {
 			log.Fatalf("opening keychain: %v", err)
 		}
@@ -342,4 +342,15 @@ func hotp(key []byte, counter uint64, digits int) int {
 
 func totp(key []byte, t time.Time, digits int) int {
 	return hotp(key, uint64(t.UnixNano())/30e9, digits)
+}
+
+func password() (string, error) {
+	fmt.Fprint(os.Stderr, "password: ")
+	password, err := term.ReadPassword(int(syscall.Stdin))
+	if err != nil {
+		return "", fmt.Errorf("error reading password: %v", err)
+	}
+
+	fmt.Fprintln(os.Stderr)
+	return string(password), nil
 }
