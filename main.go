@@ -33,7 +33,7 @@
 // the key and the current time, so it is important that the system clock have
 // at least one-minute accuracy.
 //
-// The keychain is stored unencrypted in the text file $HOME/.2fa.
+// The keychain is encrypted using AES-GCM and stored in the text file $HOME/.2fa.
 //
 // Example
 //
@@ -81,7 +81,7 @@ import (
 	"unicode"
 
 	"github.com/atotto/clipboard"
-	"github.com/sudo-sturbia/2fe/pkg/cryptfile"
+	"github.com/sudo-sturbia/2fe/pkg/keyfile"
 	"golang.org/x/term"
 )
 
@@ -166,7 +166,7 @@ func readKeychain(file, password string) *Keychain {
 		keys: make(map[string]Key),
 	}
 
-	data, err := cryptfile.Read(file, password)
+	data, err := keyfile.Read(file, password)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return c
@@ -260,7 +260,7 @@ func (c *Keychain) add(name, password string) {
 	}
 	line += "\n"
 
-	err = cryptfile.Write(c.file, password, []byte(line))
+	err = keyfile.Write(c.file, password, []byte(line))
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -1,4 +1,4 @@
-package cryptfile
+package keyfile
 
 import (
 	"bufio"
