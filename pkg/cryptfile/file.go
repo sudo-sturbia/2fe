@@ -15,12 +15,7 @@ import (
 
 // Read reads a file with encrypted contents from a given path, decrypts
 // the contents and returns them.
-func Read(path string) ([]byte, error) {
-	passphrase, err := passphrase()
-	if err != nil {
-		return nil, err
-	}
-
+func Read(path, passphrase string) ([]byte, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -70,12 +65,7 @@ func Read(path string) ([]byte, error) {
 
 // Write encrypts contents using AES-GCM and a passphrase, and writes the
 // encrypted contents to the given path.
-func Write(path string, contents []byte) error {
-	passphrase, err := passphrase()
-	if err != nil {
-		return err
-	}
-
+func Write(path, passphrase string, contents []byte) error {
 	key, err := key(passphrase)
 	if err != nil {
 		return err
@@ -121,13 +111,4 @@ func key(passphrase string) ([]byte, error) {
 		return nil, err
 	}
 	return key, nil
-}
-
-func passphrase() (string, error) {
-	fmt.Fprint(os.Stderr, "passphrase: ")
-	passphrase, err := bufio.NewReader(os.Stdin).ReadString('\n')
-	if err != nil {
-		return "", fmt.Errorf("error reading passphrase: %v", err)
-	}
-	return passphrase, nil
 }

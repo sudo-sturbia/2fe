@@ -106,7 +106,12 @@ func main() {
 	flag.Usage = usage
 	flag.Parse()
 
-	k := readKeychain(filepath.Join(os.Getenv("HOME"), ".2fa"))
+	passphrase, err := passphrase()
+	if err != nil {
+		log.Fatalf("failed to read passphrase: %v", err)
+	}
+
+	k := readKeychain(filepath.Join(os.Getenv("HOME"), ".2fa"), passphrase)
 
 	if *flagList {
 		if flag.NArg() != 0 {
@@ -133,7 +138,7 @@ func main() {
 		if *flagClip {
 			usage()
 		}
-		k.add(name)
+		k.add(name, passphrase)
 		return
 	}
 	k.show(name)
@@ -153,13 +158,13 @@ type Key struct {
 
 const counterLen = 20
 
-func readKeychain(file string) *Keychain {
+func readKeychain(file, passphrase string) *Keychain {
 	c := &Keychain{
 		file: file,
 		keys: make(map[string]Key),
 	}
 
-	data, err := cryptfile.Read(file)
+	data, err := cryptfile.Read(file, passphrase)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return c
@@ -225,7 +230,7 @@ func noSpace(r rune) rune {
 	return r
 }
 
-func (c *Keychain) add(name string) {
+func (c *Keychain) add(name, passphrase string) {
 	size := 6
 	if *flag7 {
 		size = 7
@@ -253,7 +258,7 @@ func (c *Keychain) add(name string) {
 	}
 	line += "\n"
 
-	err = cryptfile.Write(c.file, []byte(line))
+	err = cryptfile.Write(c.file, passphrase, []byte(line))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -335,4 +340,13 @@ func hotp(key []byte, counter uint64, digits int) int {
 
 func totp(key []byte, t time.Time, digits int) int {
 	return hotp(key, uint64(t.UnixNano())/30e9, digits)
+}
+
+func passphrase() (string, error) {
+	fmt.Fprint(os.Stderr, "passphrase: ")
+	passphrase, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil {
+		return "", fmt.Errorf("error reading passphrase: %v", err)
+	}
+	return passphrase, nil
 }
