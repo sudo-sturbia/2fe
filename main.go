@@ -76,11 +76,13 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 	"unicode"
 
 	"github.com/atotto/clipboard"
 	"github.com/sudo-sturbia/2fe/pkg/cryptfile"
+	"golang.org/x/term"
 )
 
 var (
@@ -106,12 +108,12 @@ func main() {
 	flag.Usage = usage
 	flag.Parse()
 
-	passphrase, err := passphrase()
+	password, err := password()
 	if err != nil {
-		log.Fatalf("failed to read passphrase: %v", err)
+		log.Fatalf("failed to read password: %v", err)
 	}
 
-	k := readKeychain(filepath.Join(os.Getenv("HOME"), ".2fa"), passphrase)
+	k := readKeychain(filepath.Join(os.Getenv("HOME"), ".2fa"), password)
 
 	if *flagList {
 		if flag.NArg() != 0 {
@@ -138,7 +140,7 @@ func main() {
 		if *flagClip {
 			usage()
 		}
-		k.add(name, passphrase)
+		k.add(name, password)
 		return
 	}
 	k.show(name)
@@ -158,13 +160,13 @@ type Key struct {
 
 const counterLen = 20
 
-func readKeychain(file, passphrase string) *Keychain {
+func readKeychain(file, password string) *Keychain {
 	c := &Keychain{
 		file: file,
 		keys: make(map[string]Key),
 	}
 
-	data, err := cryptfile.Read(file, passphrase)
+	data, err := cryptfile.Read(file, password)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return c
@@ -230,7 +232,7 @@ func noSpace(r rune) rune {
 	return r
 }
 
-func (c *Keychain) add(name, passphrase string) {
+func (c *Keychain) add(name, password string) {
 	size := 6
 	if *flag7 {
 		size = 7
@@ -258,7 +260,7 @@ func (c *Keychain) add(name, passphrase string) {
 	}
 	line += "\n"
 
-	err = cryptfile.Write(c.file, passphrase, []byte(line))
+	err = cryptfile.Write(c.file, password, []byte(line))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -342,11 +344,13 @@ func totp(key []byte, t time.Time, digits int) int {
 	return hotp(key, uint64(t.UnixNano())/30e9, digits)
 }
 
-func passphrase() (string, error) {
-	fmt.Fprint(os.Stderr, "passphrase: ")
-	passphrase, err := bufio.NewReader(os.Stdin).ReadString('\n')
+func password() (string, error) {
+	fmt.Fprint(os.Stderr, "password: ")
+	password, err := term.ReadPassword(int(syscall.Stdin))
 	if err != nil {
-		return "", fmt.Errorf("error reading passphrase: %v", err)
+		return "", fmt.Errorf("error reading password: %v", err)
 	}
-	return passphrase, nil
+
+	fmt.Fprintln(os.Stderr)
+	return string(password), nil
 }
